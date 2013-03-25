@@ -12,7 +12,6 @@ module Capistrano
           _cset(:nodeenv_version, nil)
           _cset(:nodeenv_jobs, 4)
           _cset(:nodeenv_verbose, true)
-          _cset(:nodeenv_use_system, false) # controls whether nodeenv should be use system packages or not.
 
           _cset(:nodeenv_script_url, 'https://raw.github.com/ekalinin/nodeenv/master/nodeenv.py')
           _cset(:nodeenv_script_file) {
@@ -31,14 +30,14 @@ module Capistrano
           }
 
           _cset(:nodeenv_requirements_file) { # secondary package list
-            File.join(release_path, 'node_requirements.txt')
+            File.join(release_path)
           }
           _cset(:nodeenv_options) {
             os = ""
-            os << "--jobs=#{nodeenv_jobs}"
-            os << "--verbose" if nodeenv_verbose
-            os << "--node=#{nodeenv_version}" if nodeenv_version
-            os << "--requirement=#{nodeenv_requirements_file}" if nodeenv_requeirements_file
+            os << "--jobs=#{nodeenv_jobs} "
+            os << "--verbose " if nodeenv_verbose
+            os << "--node=#{nodeenv_version} " if nodeenv_version
+            #os << "--requirement=#{nodeenv_requirements_file}" if nodeenv_requirements_file
             os
           }
           _cset(:nodeenv_npm_options, "")
@@ -65,7 +64,7 @@ module Capistrano
           _cset(:nodeenv_shared_npm_cmd) {
             [
               nodeenv_shared_node,
-              nodeenv_share_npm,
+              nodeenv_shared_npm,
               nodeenv_npm_options,
             ].flatten.join(' ')
           }
@@ -160,8 +159,9 @@ module Capistrano
             unless nodeenv_requirements.empty?
               top.safe_put(nodeenv_requirements.join("\n"), nodeenv_requirements_file, :place => :if_modified)
             end
-            run("touch #{nodeenv_requirements_file} && #{nodeenv_shared_npm_cmd} install #{nodeenv_npm_install_options.join(' ')} -r #{nodeenv_requirements_file}")
+            run("touch #{nodeenv_requirements_file} && #{nodeenv_shared_npm_cmd} install #{nodeenv_npm_install_options.join(' ')} #{nodeenv_requirements_file}")
 
+            puts("Updated requirements")
             execute = nodeenv_build_requirements.map { |package, options|
               build_options = ( options || [] )
               "#{nodeenv_shared_npm_cmd} install #{nodeenv_npm_install_options.join(' ')} #{build_options.join(' ')} #{package.dump}"
@@ -173,19 +173,10 @@ module Capistrano
             dirs = [ File.dirname(nodeenv_release_path) ].uniq()
             cmds = [ ]
             cmds << "mkdir -p #{dirs.join(' ')}"
-            # TODO: turn :nodeenv_use_relocatable true if it will be an official features.
-            # `nodeenv --relocatable` does not work expectedly as of nodeenv 1.7.2.
-            if fetch(:nodeenv_use_relocatable, false)
-              #cmds << "#{nodeenv_cmd} --relocatable #{nodeenv_shared_path}"
-              cmds << "cp -RPp #{nodeenv_shared_path} #{nodeenv_release_path}"
-            else
-              cmds << "( test -d #{nodeenv_release_path} || #{nodeenv_cmd} #{nodeenv_release_path} )"
-              cmds << "( test -x #{nodeenv_release_npm} || #{nodeenv_release_easy_install_cmd} #{nodeenv_npm_package} )"
-              cmds << "#{nodeenv_release_node} --version && #{nodeenv_release_npm_cmd} --version"
-              cmds << "rsync -lrpt -u #{nodeenv_shared_path}/bin/ #{nodeenv_release_path}/bin/" # copy binaries and scripts from shared nodeenv
-              cmds << "sed -i -e 's|^#!#{nodeenv_shared_path}/bin/node.*$|#!#{nodeenv_release_path}/bin/node|' #{nodeenv_release_path}/bin/*"
-              cmds << "rsync -lrpt #{nodeenv_shared_path}/lib/ #{nodeenv_release_path}/lib/" # copy libraries from shared nodeenv
-            end
+
+            # Copy nodeenv from shared to release directory
+            cmds << "cp -rf #{nodeenv_shared_path} #{nodeenv_release_path}"
+            cmds << "sed -i -e 's|#{nodeenv_shared_path}|#{nodeenv_release_path}|g' #{nodeenv_release_path}/bin/activate"
             run(cmds.join(' && '))
           }
         }
