@@ -12,6 +12,7 @@ module Capistrano
           _cset(:nodeenv_version, nil)
           _cset(:nodeenv_jobs, 4)
           _cset(:nodeenv_verbose, true)
+          _cset(:nodeenv_verbose, true)
 
           _cset(:nodeenv_script_url, 'https://raw.github.com/ekalinin/nodeenv/master/nodeenv.py')
           _cset(:nodeenv_script_file) {
@@ -37,6 +38,7 @@ module Capistrano
             os << "--jobs=#{nodeenv_jobs} "
             os << "--verbose " if nodeenv_verbose
             os << "--node=#{nodeenv_version} " if nodeenv_version
+            os << "--with-npm" if with_npm
             #os << "--requirement=#{nodeenv_requirements_file}" if nodeenv_requirements_file
             os
           }
