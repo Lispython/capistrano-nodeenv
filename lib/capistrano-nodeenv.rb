@@ -161,14 +161,19 @@ module Capistrano
             unless nodeenv_requirements.empty?
               top.safe_put(nodeenv_requirements.join("\n"), nodeenv_requirements_file, :place => :if_modified)
             end
-            run("touch #{nodeenv_requirements_file} && #{nodeenv_shared_npm_cmd} install #{nodeenv_npm_install_options.join(' ')} #{nodeenv_requirements_file}")
+                cmds = ["touch #{nodeenv_requirements_file}"]
+                cmds << ". #{nodeenv_shared_path}/bin/activate"
+                cmds << "cat #{nodeenv_requirements_file}/package.json | python -c 'import json,sys;obj=json.load(sys.stdin);print \"\\r\\n\".join([k+\"@\"+v for k, v  in obj.get(\"dependencies\", {}).items()])' | awk '{ print \"npm install -g #{nodeenv_npm_install_options.join(' ')} \"$0}' | bash"
+                cmds << "deactivate_node"
+                #run( &&  && #{nodeenv_shared_npm_cmd} install -g #{nodeenv_npm_install_options.join(' ')} #{nodeenv_requirements_file}")
+                invoke_command(cmds.join(' && '))
 
             puts("Updated requirements")
             execute = nodeenv_build_requirements.map { |package, options|
               build_options = ( options || [] )
-              "#{nodeenv_shared_npm_cmd} install #{nodeenv_npm_install_options.join(' ')} #{build_options.join(' ')} #{package.dump}"
+              ". #{nodeenv_shared_path}/bin/activate && #{nodeenv_shared_npm_cmd} install -g #{nodeenv_npm_install_options.join(' ')} #{build_options.join(' ')} #{package.dump} && deactivate_node"
             }
-            run(execute.join(' && ')) unless execute.empty?
+            invoke_command(execute.join(' && ')) unless execute.empty?
           }
 
           task(:create_release, :except => { :no_release => true }) {
@@ -179,7 +184,7 @@ module Capistrano
             # Copy nodeenv from shared to release directory
             cmds << "cp -rf #{nodeenv_shared_path} #{nodeenv_release_path}"
             cmds << "sed -i -e 's|#{nodeenv_shared_path}|#{nodeenv_release_path}|g' #{nodeenv_release_path}/bin/activate"
-            run(cmds.join(' && '))
+            invoke_command(cmds.join(' && '))
           }
         }
       }
